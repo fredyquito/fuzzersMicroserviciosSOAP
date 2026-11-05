@@ -114,6 +114,55 @@ PROPFIND
 ..\..\..\..\windows\win.ini
 /etc/passwd
 ```
+# Path Traversal Payloads — SOAP Microservices (1000)
+
+Colección de **1000 payloads de path traversal (LFI)** orientados a
+**microservicios SOAP** desplegados tras **IBM DataPower** y
+**balanceadores Linux/Unix** (nginx, HAProxy, Apache, keepalived).
+
+Incluye **100+ payloads reconstruidos a partir de CVEs reales de severidad
+alta/crítica**: Apache (CVE-2021-41773 / CVE-2021-42013), FortiOS
+(CVE-2018-13379), F5 BIG-IP (CVE-2020-5902, CVE-2022-1388), Citrix
+(CVE-2019-19781, CVE-2023-4966), PAN-OS (CVE-2024-3400), WebLogic
+(CVE-2020-14882), Jenkins (CVE-2024-23897), Exchange ProxyShell/ProxyNotShell,
+Grafana (CVE-2021-43798), Hikvision (CVE-2021-36260), vCenter, Zimbra y más.
+
+## Contenido
+
+| Sección | Vector |
+|---|---|
+| CVEs alto/crítico | Payloads de PoCs públicos (NVD / Exploit-DB / GitHub) |
+| Traversal Unix/Linux | `/etc/passwd`, `nginx.conf`, `haproxy.cfg`, store de DataPower |
+| Codificación | URL simple/doble, overlong UTF-8 (capa balanceador) |
+| XML/SOAP | Entidades decimales/hex, CDATA, XInclude, XSLT `document()`, `dp:` |
+| Null byte / sufijos | Parsers antiguos |
+| Windows | `..\`, `%5c`, `::$DATA`, UNC |
+| Wrappers | `file://`, `php://filter`, `expect://` |
+| Oracle de detección | Diferenciar faults SOAP por existencia/permisos |
+
+## Uso
+
+Compatible con `ffuf`, `wfuzz`, Burp Intruder y cualquier fuzzer HTTP:
+inyectar en el elemento SOAP que reciba rutas (`filename`, `filepath`,
+`template`, `docId`...).
+
+ffuf -w payloads_traversal_soap_1000.txt -u https://target/soap -d '<soapenv:Envelope ...><filename>FUZZ</filename>...'
+
+## Referencias
+
+- OWASP WSTG-ATHZ-01 — Testing Directory Traversal / File Include
+- OWASP Path Traversal Cheat Sheet
+- PayloadsAllTheThings / SecLists
+
+## Aviso legal
+
+Solo para uso en sistemas con **autorización escrita** (pentesting, laboratorios,
+investigación de seguridad). El usuario es responsable del cumplimiento de las
+leyes locales. Los payloads derivados de CVEs son reconstrucciones de PoCs
+públicos con fines educativos.
+
+---
+Educational purposes only · Authorized testing only
 
 ## Cómo analiza (basado en cabeceras)
 
