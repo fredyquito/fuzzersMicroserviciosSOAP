@@ -34,6 +34,25 @@ porque necesita verificar la salida del comando.
    lectura no destructivos (`id`, `ip a`) en el path, el query string y el
    body (incluido XML/SOAP), y **confirma RCE** buscando su salida en la
    respuesta.
+Definidos en CMDI_COMMANDS:
+Comando	Qué prueba	Regex de confirmación en la respuesta
+id	Ejecución como usuario del servicio	uid=\d+\([^)]+\), gid=\d+\(
+ip a	Enumeración de interfaces de red del servidor	inet <IP>, link/ether|loopback, formato de listado de interfaces
+Plantillas de inyección usadas (CMDI_TEMPLATES)
+El comando se inyecta con 10 operadores de shell distintos:
+;{CMD}   |{CMD}   ||{CMD}   &&{CMD}   &{CMD}
+`{CMD}`  $( {CMD} )   \n{CMD}   %0a{CMD}   ; {CMD} #
+Puntos de inyección (build_cmdi_injections)
+1. Path de la URL — p. ej. /ws/op;id (excluye plantillas con \n crudo)
+2. Parámetros del query string — ?param=valor;id
+3. Body urlencoded — campo=valor|id
+4. Body XML/SOAP — <tag>valor&&id</tag> (solo el primer elemento con texto, para limitar la explosión de casos)
+Confirmación y clasificación
+- Es la única fase que lee el body de la respuesta (keep_body=True).
+- Si el regex de salida del comando matchea → CRÍTICA (RCE confirmada), extrae fragmento de evidencia (_extract_evidence) y lo registra en el informe CSV/JSON.
+- --cmdi-cmd está restringido por choices a id/ip a — no admite comandos arbitrarios por diseño (comentado explícitamente como PoC no destructiva).
+- Requiere flag --cmdi o confirmación interactiva; no corre por defecto.
+Notas OPSEC del propio script: omite CONNECT si hay proxy (evita falso positivo de Burp), y con --cmdi activo imprime aviso de que es fase ACTIVA que requiere autorización explícita.
 
 Cada hallazgo de severidad **Alta/Media/Crítica** incluye una **justificación**
 (por qué tiene esa severidad) y una **sugerencia de remediación**.
