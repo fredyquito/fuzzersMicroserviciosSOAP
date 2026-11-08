@@ -1,7 +1,0 @@
-Agregar una barra de progreso
-Asegurarse de que cada hilo disparado no repita la ejecución de un antecesor
-Al finalizar toda la ejecución mostrar el resumen de los hallazgos Alto/Medio/Bajo por cada microservicio evaluado
-Cada ejecución que se va imprimiendo en el terminal debe tener un número secuencial.
-Cada payload evaluado si el Hallazgo es Alto o Medio debe justificar porque es de severidad Alto o Medio y una sugerencia para cerrar el hallazgo
-Toda la ejecución debe ser guardada en un log de ejecución en donde conste fecha/hora/secuencial y el payload ejecutado.
-Presentar cuanto tiempo se ejecutó el script, fecha hora, fecha fin, cantidad de payloads lanzados.
