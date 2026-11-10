@@ -34,25 +34,13 @@ porque necesita verificar la salida del comando.
    lectura no destructivos (`id`, `ip a`) en el path, el query string y el
    body (incluido XML/SOAP), y **confirma RCE** buscando su salida en la
    respuesta.
-Definidos en CMDI_COMMANDS:
-Comando	Qué prueba	Regex de confirmación en la respuesta
-id	Ejecución como usuario del servicio	uid=\d+\([^)]+\), gid=\d+\(
-ip a	Enumeración de interfaces de red del servidor	inet <IP>, link/ether|loopback, formato de listado de interfaces
-Plantillas de inyección usadas (CMDI_TEMPLATES)
-El comando se inyecta con 10 operadores de shell distintos:
-;{CMD}   |{CMD}   ||{CMD}   &&{CMD}   &{CMD}
-`{CMD}`  $( {CMD} )   \n{CMD}   %0a{CMD}   ; {CMD} #
-Puntos de inyección (build_cmdi_injections)
-1. Path de la URL — p. ej. /ws/op;id (excluye plantillas con \n crudo)
-2. Parámetros del query string — ?param=valor;id
-3. Body urlencoded — campo=valor|id
-4. Body XML/SOAP — <tag>valor&&id</tag> (solo el primer elemento con texto, para limitar la explosión de casos)
-Confirmación y clasificación
-- Es la única fase que lee el body de la respuesta (keep_body=True).
-- Si el regex de salida del comando matchea → CRÍTICA (RCE confirmada), extrae fragmento de evidencia (_extract_evidence) y lo registra en el informe CSV/JSON.
-- --cmdi-cmd está restringido por choices a id/ip a — no admite comandos arbitrarios por diseño (comentado explícitamente como PoC no destructiva).
-- Requiere flag --cmdi o confirmación interactiva; no corre por defecto.
-Notas OPSEC del propio script: omite CONNECT si hay proxy (evita falso positivo de Burp), y con --cmdi activo imprime aviso de que es fase ACTIVA que requiere autorización explícita.
+5. **Inyección en etiquetas** (`--tags`, opcional) — recorre los valores de las
+   etiquetas del body XML/SOAP (en `<headerIn>`, `<bodyIn>` o cualquier
+   elemento con valor) y prueba:
+   - **SQLi** con `' or '1'='1` — comparación diferencial verdadero/falso
+     (`'1'='1` vs `'1'='2`) y detección de errores de motor SQL.
+   - **Validación de tipo** — inyecta letras y símbolos en los campos numéricos
+     para comprobar si el servicio los acepta (falta de validación de entrada).
 
 Cada hallazgo de severidad **Alta/Media/Crítica** incluye una **justificación**
 (por qué tiene esa severidad) y una **sugerencia de remediación**.
@@ -64,8 +52,8 @@ Cada hallazgo de severidad **Alta/Media/Crítica** incluye una **justificación*
 | Severidad   | Cuándo se asigna |
 |-------------|------------------|
 | **CRÍTICA** | Explotabilidad **demostrada** — RCE confirmada por la fase `--cmdi`. |
-| **ALTO**    | Método peligroso aceptado, TRACE/XST, indicio fuerte de path traversal, CORS inseguro. |
-| **MEDIO**   | Divulgación de tecnología, CORS abierto, indicios de traversal. |
+| **ALTO**    | Método peligroso aceptado, TRACE/XST, indicio fuerte de path traversal, CORS inseguro, **SQLi (error-based o diferencial de status)**. |
+| **MEDIO**   | Divulgación de tecnología, CORS abierto, indicios de traversal, **SQLi booleana por tamaño, campo numérico que acepta letras/símbolos**. |
 | **BAJO**    | Cabeceras de seguridad ausentes, `405` sin `Allow`. |
 
 > Los hallazgos **BAJA no se imprimen en terminal** (para reducir ruido), pero
@@ -143,6 +131,10 @@ python3 soap_fuzzer.py --postman coleccion.json --burp \
 | `--traversal-file` | Archivo `.txt` con payloads de traversal. |
 | `--cmdi` | Fase ACTIVA de PoC de RCE (id, ip a). Solo con autorización. |
 | `--cmdi-cmd` | Comando(s) de prueba: `id`, `ip a` (repetible). |
+| `--tags` | Fase ACTIVA: SQLi (`' or '1'='1`) y validación de tipo en valores de etiquetas XML. Solo con autorización. |
+| `--tags-only` | Limitar `--tags` a ciertas etiquetas (nombres separados por coma, sin namespace). |
+| `--sqli-file` | Archivo `.txt` con payloads SQLi (uno por línea). Reemplaza la lista por defecto. |
+| `--type-file` | Archivo `.txt` con payloads de validación de tipo (letras/símbolos, uno por línea). |
 | `--threads` | Hilos concurrentes por lote (por defecto 1). |
 | `--interval` | Milisegundos de espera entre lotes. |
 | `--burp` | Enruta por `http://127.0.0.1:8080` y desactiva verificación TLS. |
@@ -175,6 +167,27 @@ PROPFIND
 ../../../../etc/passwd
 ..%2f..%2fetc%2fpasswd
 ..%c0%af..%c0%afetc/passwd
+```
+
+**`sqli.txt`** (fase `--tags`, con `--sqli-file`)
+```
+# Payloads SQLi - uno por línea
+' or '1'='1
+" or "1"="1
+' UNION SELECT NULL--
+admin'--
+```
+> Para cada payload se deriva automáticamente su contraparte falsa
+> (`'1'='1` → `'1'='2`) cuando es posible, para la comparación booleana; si no,
+> la detección se hace por error SQL o por diferencia contra la baseline.
+
+**`types.txt`** (fase `--tags`, con `--type-file`)
+```
+# Validación de campos numéricos - uno por línea
+ABC
+!!!###
+12.5
+1 OR 1
 ```
 
 ---
